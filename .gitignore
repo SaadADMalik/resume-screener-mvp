@@ -3,4 +3,4 @@ __pycache__/
 data/resumes/
 data/processed/*.log
 !data/processed/matches.json
-!data/processed/processed_resumes.json
+!data/processed/ranked_resumes.json

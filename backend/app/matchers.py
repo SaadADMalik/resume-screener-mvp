@@ -6,9 +6,15 @@ from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 
 def extract_keywords(text):
-    # Simple keyword extraction (extend with NLP if needed)
-    keywords = re.findall(r'\b\w+\b', text.lower())
-    return set([word for word in keywords if len(word) > 3])  # Filter short words
+    # Extract keywords and phrases (e.g., 'machine learning', 'data analysis')
+    keywords = set()
+    text = text.lower()
+    # Simple regex for single words and common phrases
+    single_words = re.findall(r'\b\w{4,}\b', text)  # Words with 4+ chars
+    phrases = re.findall(r'\b\w+\s+\w+\b', text)  # Two-word phrases
+    keywords.update(single_words)
+    keywords.update(phrases)
+    return keywords
 
 def match_resume_to_job(resume_texts, resume_filenames, job_text, model_name='all-MiniLM-L6-v2'):
     # Load model
@@ -24,15 +30,21 @@ def match_resume_to_job(resume_texts, resume_filenames, job_text, model_name='al
     similarities = cosine_similarity(resume_embeddings, [job_embedding])
     
     # Extract keywords and compile results
-    results = {}
+    results = []
     job_keywords = extract_keywords(job_text)
     for filename, resume_text, similarity in zip(resume_filenames, resume_texts, similarities):
         resume_keywords = extract_keywords(resume_text)
-        matched_keywords = list(resume_keywords.intersection(job_keywords))[:10]
-        results[filename] = {
+        matched_keywords = list(resume_keywords.intersection(job_keywords))
+        # Sort keywords by relevance (e.g., length, favoring phrases)
+        matched_keywords = sorted(matched_keywords, key=len, reverse=True)[:5]  # Top 5
+        results.append({
+            'filename': filename,
             'similarity': float(similarity[0]),
             'matched_keywords': matched_keywords
-        }
+        })
+    
+    # Sort by similarity (descending)
+    results = sorted(results, key=lambda x: x['similarity'], reverse=True)
     return results
 
 if __name__ == '__main__':
@@ -40,19 +52,24 @@ if __name__ == '__main__':
     with open('D:/resume-screener-mvp/data/processed/extracted_texts.json', 'r') as f:
         resumes = json.load(f)
     
-    # Select 100 resumes
-    resume_filenames = list(resumes.keys())[:100]
-    resume_texts = list(resumes.values())[:100]
+    # Select up to 1000 resumes
+    resume_filenames = list(resumes.keys())[:1000]
+    resume_texts = list(resumes.values())[:1000]
     
     # Load job description
     with open('D:/resume-screener-mvp/data/job_descriptions/data_scientist.txt', 'r') as f:
         job_text = f.read()
     
-    # Match resumes
+    # Match and rank resumes
     start_time = time.time()
-    matches = match_resume_to_job(resume_texts, resume_filenames, job_text)
+    ranked_results = match_resume_to_job(resume_texts, resume_filenames, job_text)
     print(f'Total processing time: {time.time() - start_time:.2f} seconds')
     
-    # Save results
-    with open('D:/resume-screener-mvp/data/processed/matches.json', 'w') as f:
-        json.dump(matches, f, indent=2)
+    # Save ranked results
+    with open('D:/resume-screener-mvp/data/processed/ranked_resumes.json', 'w') as f:
+        json.dump(ranked_results, f, indent=2)
+    
+    # Verify explanations for 100 resumes
+    print('\nTop 5 resumes and their matched keywords:')
+    for result in ranked_results[:5]:
+        print(f"Resume: {result['filename']}, Similarity: {result['similarity']:.4f}, Keywords: {result['matched_keywords']}")
