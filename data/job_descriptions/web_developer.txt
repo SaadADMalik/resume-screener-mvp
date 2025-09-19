@@ -1,0 +1,4 @@
+﻿Job Title: Web Developer
+Responsibilities: Design and code user interfaces for websites, ensuring a seamless and visually appealing user experience. Collaborate with UX designers to optimize user journeys. Ensure cross-browser compatibility and responsive design.
+Requirements: HTML, CSS, JavaScript, Frontend frameworks (e.g., React, Angular), User experience (UX)
+Skills: HTML, CSS, JavaScript, React, Angular, UX Design

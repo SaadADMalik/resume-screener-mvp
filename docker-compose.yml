@@ -1,0 +1,1 @@
+"# docker-compose.yml for multi-container testing - finalize on Day 4 or 7" | Out-File -FilePath D:\resume-screener-mvp\docker-compose.yml -Encoding UTF8

@@ -1,0 +1,4 @@
+﻿Job Title: Data Scientist
+Responsibilities: Develop machine learning models, analyze large datasets, implement NLP pipelines, collaborate with cross-functional teams.
+Requirements: Python, TensorFlow, PyTorch, 3+ years experience, strong communication skills.
+Skills: Python, Machine Learning, NLP, Data Analysis, TensorFlow, PyTorch
