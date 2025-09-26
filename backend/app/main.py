@@ -1,13 +1,14 @@
+# backend/app/main.py
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 from io import BytesIO
 import base64
 
-from .matchers import ResumeRanker  # ✅ using ResumeRanker
+from .matchers import ResumeRanker  # ✅ Relative import
 
 app = FastAPI()
-ranker = ResumeRanker(similarity_threshold=0.0, batch_size=8)  # allow all, sort later
+ranker = ResumeRanker(similarity_threshold=0.0, batch_size=8)
 
 class RankRequest(BaseModel):
     resume_texts: List[str]
@@ -23,7 +24,7 @@ async def rank_resumes(data: RankRequest):
     resume_filenames = data.resume_filenames
     resume_files_b64 = data.resume_files_b64 or []
 
-    # Fill missing texts from raw files if possible
+    # Fill missing texts from raw files
     for i in range(len(resume_filenames)):
         if i >= len(resume_texts) or not resume_texts[i].strip():
             if i < len(resume_files_b64) and resume_files_b64[i]:
@@ -40,7 +41,8 @@ async def rank_resumes(data: RankRequest):
     results = ranker.rank_resumes(
         resume_texts, resume_filenames,
         data.job_text, data.job_name,
-        max_keywords=15
+        max_keywords=15,
+        top_k=data.max_results  # frontend slider
     )
 
     return {"results": results}
