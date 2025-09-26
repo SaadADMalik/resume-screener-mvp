@@ -1,53 +1,46 @@
-from fastapi import FastAPI, File, UploadFile, Form
-from fastapi.responses import JSONResponse
-import json
-import PyPDF2
-from parsers import extract_text_from_pdf
-from matchers import match_resume_to_job
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import List, Optional
+from io import BytesIO
+import base64
+
+from .matchers import ResumeRanker  # ✅ using ResumeRanker
 
 app = FastAPI()
+ranker = ResumeRanker(similarity_threshold=0.0, batch_size=8)  # allow all, sort later
 
-@app.post('/match_resume')
-async def match_resume(file: UploadFile = File(...), job: str = Form('data_scientist')):
-    # Validate job description file
-    job_file = f'D:/resume-screener-mvp/data/job_descriptions/{job}.txt'
-    try:
-        with open(job_file, 'r') as f:
-            job_text = f.read()
-    except FileNotFoundError:
-        return JSONResponse(status_code=400, content={'error': f'Job description {job}.txt not found'})
+class RankRequest(BaseModel):
+    resume_texts: List[str]
+    resume_filenames: List[str]
+    resume_files_b64: Optional[List[str]] = None
+    job_text: str
+    job_name: str
+    max_results: int = 5
 
-    # Extract text from uploaded PDF
-    try:
-        with open('temp_resume.pdf', 'wb') as temp_file:
-            temp_file.write(await file.read())
-        resume_text = extract_text_from_pdf('temp_resume.pdf')
-        if not resume_text:
-            return JSONResponse(status_code=400, content={'error': 'Failed to extract text from PDF'})
-    except Exception as e:
-        return JSONResponse(status_code=400, content={'error': f'PDF processing failed: {str(e)}'})
+@app.post("/rank-resumes")
+async def rank_resumes(data: RankRequest):
+    resume_texts = data.resume_texts
+    resume_filenames = data.resume_filenames
+    resume_files_b64 = data.resume_files_b64 or []
 
-    # Match resume to job
-    result = match_resume_to_job([resume_text], ['uploaded_resume'], job_text)
-    return result[0]
+    # Fill missing texts from raw files if possible
+    for i in range(len(resume_filenames)):
+        if i >= len(resume_texts) or not resume_texts[i].strip():
+            if i < len(resume_files_b64) and resume_files_b64[i]:
+                file_bytes = base64.b64decode(resume_files_b64[i])
+                text = ranker.extract_text_from_pdf(BytesIO(file_bytes))
+                if i < len(resume_texts):
+                    resume_texts[i] = text or ""
+                else:
+                    resume_texts.append(text or "")
 
-@app.post('/match_job')
-async def match_job(job_text: str = Form(...), n: int = Form(10)):
-    # Load extracted resume texts
-    try:
-        with open('D:/resume-screener-mvp/data/processed/extracted_texts.json', 'r') as f:
-            resumes = json.load(f)
-    except FileNotFoundError:
-        return JSONResponse(status_code=404, content={'error': 'Resume data not found'})
+    if len(resume_texts) != len(resume_filenames):
+        raise HTTPException(status_code=400, detail="Mismatch after OCR extraction")
 
-    # Select up to 100 resumes for testing
-    resume_filenames = list(resumes.keys())[:100]
-    resume_texts = list(resumes.values())[:100]
+    results = ranker.rank_resumes(
+        resume_texts, resume_filenames,
+        data.job_text, data.job_name,
+        max_keywords=15
+    )
 
-    # Match and rank resumes
-    results = match_resume_to_job(resume_texts, resume_filenames, job_text)
-    return results[:n]
-
-if __name__ == '__main__':
-    import uvicorn
-    uvicorn.run(app, host='0.0.0.0', port=8000)
+    return {"results": results}
